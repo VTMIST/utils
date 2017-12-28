@@ -5,9 +5,6 @@ import numpy as np
 import datetime as dt
 
 datapath = 'S:/Space/Datasets/aalpip_raw'
-dayname = '2017_01_25'
-system = 3
-subsystem = 'sc'
 
 
 def generate_available_dates(year=2017, system=4, subsystem='sc'):
