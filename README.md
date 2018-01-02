@@ -1,7 +1,7 @@
 # utils
 Utility Functions for data acq, parsing, things of that nature
 
-The following functions are made available in this lib:
+The following functions are made available in data_in.py:
 * generate_available_dates(_year_, _system_, _subsystem_)
 
   Generates a list of the available dates in a year for a particular station's subsystem
