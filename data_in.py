@@ -1,7 +1,6 @@
 import os
 import gzip
 import pandas as pd
-import numpy as np
 import datetime as dt
 import pysftp
 import netrc
@@ -44,6 +43,16 @@ def generate_available_dates(year=2017, system=4, subsystem='sc'):
 
 
 def generate_yearly_masterlist(year=2017, system=3, subsystem='sc'):
+    """Generate a python list of available files in a year
+
+    Args:
+        year (int, optional): Year to discover
+        system (int, optional): System number
+        subsystem (str, optional): Subsystem ('sc', 'fg', 'hf', 'hskp', 'cases')
+
+    Returns:
+        list: long filenames
+    """
     yearly_masterlist = []
     # scan the year's data folder for all available files
     for root, dirs, files in os.walk(
@@ -56,6 +65,21 @@ def generate_yearly_masterlist(year=2017, system=3, subsystem='sc'):
 
 
 def read_housekeeping_list(hskp_zip_list=''):
+    """Read in a housekeeping filelist and return a dataframe
+
+    Args:
+        hskp_zip_list (str, optional): Python list of full file names to read
+
+    Returns:
+        DataFrame: A pandas dataframe with the following columns:
+
+        'datetime', 'Modem_on', 'FG_on', 'SC_on', 'CASES_on', 'HF_On', 'Htr_On',
+        'Garmin_GPS_on', 'Overcurrent_status_on', 'T_batt_1', 'T_batt_2',
+        'T_batt_3', 'T_FG_electronics', 'T_FG_sensor', 'T_router', 'V_batt_1',
+        'V_batt_2', 'V_batt_3', 'I_input', 'P_input', 'lat', 'long',
+        'sys_time_error_secs', 'UTC_sync_age_secs', 'Uptime_secs',
+        'CPU_load_1_min', 'CPU_load_5_min', 'CPU_load_15_min'
+    """
     df_hskp = pd.DataFrame()
     for zip_file in hskp_zip_list:
         with gzip.open(zip_file) as file:
@@ -70,6 +94,16 @@ def read_housekeeping_list(hskp_zip_list=''):
 
 
 def read_fluxgate_list(fg_zip_list=''):
+    """Read in a fluxgate filelist and return a dataframe
+
+    Args:
+        hskp_zip_list (str, optional): Python list of full file names to read
+
+    Returns:
+        DataFrame: A pandas dataframe with the following columns:
+
+        'datetime', 'Bx', 'By', 'Bz', 'Calibrating'
+    """
     df_fg = pd.DataFrame()
     fg_datetimes = []
     fg_sample_rate = dt.timedelta(seconds=1)
@@ -83,11 +117,22 @@ def read_fluxgate_list(fg_zip_list=''):
                            x for x in range(0, df_in.shape[0])]
             fg_datetimes = fg_datetimes + fg_in_dates
     df_fg['datetime'] = fg_datetimes
-    df_fg = df_fg.reindex(columns=['datetime','Bx', 'By', 'Bz', 'Calibrating'])
+    df_fg = df_fg.reindex(
+        columns=['datetime', 'Bx', 'By', 'Bz', 'Calibrating'])
     return df_fg
 
 
 def read_searchcoil_list(sc_zip_list=''):
+    """Read in a searchcoil filelist and return a dataframe
+
+    Args:
+        sc_zip_list (str, optional): Python list of full file names to read
+
+    Returns:
+        DataFrame: A pandas dataframe with the following columns:
+
+        'datetime', 'dBx', 'dBy'
+    """
     df_sc = pd.DataFrame()
     datetimes = []
     hexstr = b''
@@ -119,6 +164,17 @@ def read_searchcoil_list(sc_zip_list=''):
 
 
 def import_searchcoil(start='2017_01_01', end='2017_01_01'):
+    """Reads a subset of the year's data and return a dataframe
+
+    Args:
+        start (str, optional): First date of subset
+        end (str, optional): Last date of subset
+
+    Returns:
+        DataFrame:  A pandas dataframe with the following columns:
+
+        'datetime', 'dBx', 'dBy'
+    """
     # generate a list of all files in a year
     yearly_masterlist = generate_yearly_masterlist(int(start[:4]), 4, 'sc')
     # Find the starting index in the master file list for the year
@@ -135,6 +191,11 @@ def import_searchcoil(start='2017_01_01', end='2017_01_01'):
 
 
 def data_import_test():
+    """Test the import capability for 2017, sys_4, searchcoil
+
+    Returns:
+        NULL
+    """
     print('Dates Available - 2017 - sys_4')
     print(generate_available_dates())
     dt, xs, ys = import_searchcoil()
