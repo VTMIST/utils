@@ -18,6 +18,7 @@ def get_filebox_cwd():
     un, _, pw = creds.authenticators('filebox.ece.vt.edu')
     cnopts = pysftp.CnOpts()
     cnopts.hostkeys = None
+
     with pysftp.Connection('filebox.ece.vt.edu', username=un, password=pw, cnopts=cnopts) as sftp:
         return sftp.pwd
 
@@ -163,7 +164,7 @@ def read_searchcoil_list(sc_zip_list=''):
     return df_sc
 
 
-def import_searchcoil(start='2017_01_01', end='2017_01_01'):
+def import_searchcoil(start='2017_01_01', end='2017_01_01', system=4):
     """Reads a subset of the year's data and return a dataframe
 
     Args:
@@ -176,7 +177,7 @@ def import_searchcoil(start='2017_01_01', end='2017_01_01'):
         'datetime', 'dBx', 'dBy'
     """
     # generate a list of all files in a year
-    yearly_masterlist = generate_yearly_masterlist(int(start[:4]), 4, 'sc')
+    yearly_masterlist = generate_yearly_masterlist(int(start[:4]), system, 'sc')
     # Find the starting index in the master file list for the year
     for x in yearly_masterlist:
         if start in x:
@@ -198,7 +199,7 @@ def data_import_test():
     """
     print('Dates Available - 2017 - sys_4')
     print(generate_available_dates())
-    dt, xs, ys = import_searchcoil()
+    import_searchcoil()
     print(dt[-3:])
     print(dt[:3])
     return
