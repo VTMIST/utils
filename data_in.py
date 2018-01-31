@@ -170,14 +170,16 @@ def import_searchcoil(start='2017_01_01', end='2017_01_01', system=4):
     Args:
         start (str, optional): First date of subset
         end (str, optional): Last date of subset
+        system (int, optional): Which system to grab data from
 
     Returns:
-        DataFrame:  A pandas dataframe with the following columns:
+        DataFrame: A pandas dataframe with the following columns:
 
         'datetime', 'dBx', 'dBy'
     """
     # generate a list of all files in a year
-    yearly_masterlist = generate_yearly_masterlist(int(start[:4]), system, 'sc')
+    yearly_masterlist = generate_yearly_masterlist(
+        int(start[:4]), system, 'sc')
     # Find the starting index in the master file list for the year
     for x in yearly_masterlist:
         if start in x:
@@ -189,6 +191,41 @@ def import_searchcoil(start='2017_01_01', end='2017_01_01', system=4):
             end_ind = yearly_masterlist.index(x)
             break
     return read_searchcoil_list(yearly_masterlist[start_ind:end_ind])
+
+
+def import_subsys(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
+    """Reads a subset of the year's data and return a dataframe
+
+    Args:
+        start (str, optional): First date of subset
+        end (str, optional): Last date of subset
+        system (int, optional): Which system to grab from
+        subsystem (str, optional): Which instrument subsystem
+
+    Returns:
+        DataFrame: A pandas dataframe with subsystem specific columns.
+    """
+    # subsystem function dictionary
+    subsfunc = {
+        'sc': read_searchcoil_list,
+        'fg': read_fluxgate_list,
+        'hskp': read_housekeeping_list
+    }
+
+    # generate a list of all files in a year
+    yearly_masterlist = generate_yearly_masterlist(
+        int(start[:4]), system, subsys)
+    # Find the starting index in the master file list for the year
+    for x in yearly_masterlist:
+        if start in x:
+            start_ind = yearly_masterlist.index(x)
+            break
+    # Find the ending index in the master file list for the year
+    for x in reversed(yearly_masterlist):
+        if end in x:
+            end_ind = yearly_masterlist.index(x)
+            break
+    return subsfunc[subsys](yearly_masterlist[start_ind:end_ind])
 
 
 def data_import_test():
