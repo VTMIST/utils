@@ -223,7 +223,7 @@ def import_subsys(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
     # Find the ending index in the master file list for the year
     for x in reversed(yearly_masterlist):
         if end in x:
-            end_ind = yearly_masterlist.index(x)
+            end_ind = yearly_masterlist.index(x) + 1
             break
     return subsfunc[subsys](yearly_masterlist[start_ind:end_ind])
 
