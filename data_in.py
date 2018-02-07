@@ -5,7 +5,8 @@ import datetime as dt
 import pysftp
 import netrc
 
-datapath = 'S:/Space/Datasets/aalpip_raw'
+datapath_local = 'S:/Space/Datasets/aalpip_raw'
+datapath_remote = '/home/aalpip/data/'
 
 
 def get_filebox_cwd():
@@ -23,13 +24,30 @@ def get_filebox_cwd():
         return sftp.pwd
 
 
-def generate_available_dates(year=2017, system=4, subsystem='sc'):
+def find_reboots(hskp_dataframe):
+    """Scan a housekeeping file for negative trends in uptime, indicating a reboot has occured
+
+    Args:
+        hskp_dataframe (TYPE): Housekeeping dataframe
+
+    Returns:
+        reboots: An index listing of reboots based on the original dataframe
+        datetime: A series of reboot datetimes based on the original dataframe
+    """
+    reboots = hskp_dataframe.diff()['Uptime_secs'][hskp_dataframe.diff()['Uptime_secs'] < 0]
+    reboots.where(reboots == 1, 1, inplace=True)
+    datetime = hskp_dataframe['datetime'][reboots.index]
+    return datetime, reboots
+
+
+def generate_available_dates(year=2017, system=4, subsystem='sc', local=True):
     """Generate a python list of available dates in a year
 
     Args:
         year (int, optional): Year to discover
         system (int, optional): System number
         subsystem (str, optional): Subsystem ('sc', 'fg', 'hf', 'hskp', 'cases')
+        local (bool, optional): Are we checking the local or remote directory
 
     Returns:
         list: Dates in '%Y_%m_%d' format
@@ -37,7 +55,7 @@ def generate_available_dates(year=2017, system=4, subsystem='sc'):
     dates_available = []
     # scan the year's data folder for available dates
     for root, dirs, files in os.walk(
-            '{0}/{1}/sys_{2}/{3}/'.format(datapath, year, system, subsystem)):
+            '{0}/{1}/sys_{2}/{3}/'.format(datapath_local, year, system, subsystem)):
         if dirs != []:
             dates_available = dates_available + dirs
     return dates_available
@@ -57,7 +75,7 @@ def generate_yearly_masterlist(year=2017, system=3, subsystem='sc'):
     yearly_masterlist = []
     # scan the year's data folder for all available files
     for root, dirs, files in os.walk(
-            '{0}/{1}/sys_{2}/{3}/'.format(datapath, year, system, subsystem)):
+            '{0}/{1}/sys_{2}/{3}/'.format(datapath_local, year, system, subsystem)):
         if files != []:
             for file in files:
                 yearly_masterlist = yearly_masterlist + [root + '/' + file]
@@ -162,35 +180,6 @@ def read_searchcoil_list(sc_zip_list=''):
     df_sc['dBx'] = [x[0] * (.0049 / 4.43) for x in all_samples]
     df_sc['dBy'] = [x[1] * (.0049 / 4.43) for x in all_samples]
     return df_sc
-
-
-def import_searchcoil(start='2017_01_01', end='2017_01_01', system=4):
-    """Reads a subset of the year's data and return a dataframe
-
-    Args:
-        start (str, optional): First date of subset
-        end (str, optional): Last date of subset
-        system (int, optional): Which system to grab data from
-
-    Returns:
-        DataFrame: A pandas dataframe with the following columns:
-
-        'datetime', 'dBx', 'dBy'
-    """
-    # generate a list of all files in a year
-    yearly_masterlist = generate_yearly_masterlist(
-        int(start[:4]), system, 'sc')
-    # Find the starting index in the master file list for the year
-    for x in yearly_masterlist:
-        if start in x:
-            start_ind = yearly_masterlist.index(x)
-            break
-    # Find the ending index in the master file list for the year
-    for x in reversed(yearly_masterlist):
-        if end in x:
-            end_ind = yearly_masterlist.index(x)
-            break
-    return read_searchcoil_list(yearly_masterlist[start_ind:end_ind])
 
 
 def import_subsys(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
