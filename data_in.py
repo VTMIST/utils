@@ -225,7 +225,6 @@ def data_import_test():
     """
     print('Dates Available - 2017 - sys_4')
     print(generate_available_dates())
-    import_searchcoil()
     print(dt[-3:])
     print(dt[:3])
     return
