@@ -6,6 +6,8 @@ import datetime as dt
 datapath_local = 'S:/Space/Datasets/halley'
 # datapath_remote = '/home/aalpip/data/'
 
+conjugates = {'AGO4': 'KUV',
+              'AGO3': 'STF'}
 
 def generate_yearly_masterlist(year=2017, subsystem='sc', local=True):
     """Generate a python list of available files in a year

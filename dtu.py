@@ -9,12 +9,12 @@ import netrc
 datapath_local = 'S:/Space/Datasets/aalpip_raw'
 datapath_remote = '/home/aalpip/data/'
 # Magnetic Conjugates Station ID
-conjugates = {'PG0': 'UPN',
-              'PG1': 'UMQ',
-              'PG2': 'GDH',
-              'PG3': 'ATU',
-              'PG4': 'SKT',
-              'PG5': 'GHB'}
+conjugates = {'UPN': 'PG0',
+              'UMQ': 'PG1',
+              'GDH': 'PG2',
+              'ATU': 'PG3',
+              'SKT': 'PG4',
+              'GHB': 'PG5'}
 
 
 def get_filebox_cwd():
