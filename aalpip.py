@@ -9,12 +9,12 @@ import netrc
 datapath_local = 'S:/Space/Datasets/aalpip_raw'
 datapath_remote = '/home/aalpip/data/'
 # Magnetic Conjugates Station ID
-conjugates = {'PG0': 'UPN',
-              'PG1': 'UMQ',
-              'PG2': 'GDH',
-              'PG3': 'ATU',
-              'PG4': 'SKT',
-              'PG5': 'GHB'}
+conjugates = {'PG0': 'upn',
+              'PG1': 'umq',
+              'PG2': 'gdh',
+              'PG3': 'atu',
+              'PG4': 'skt',
+              'PG5': 'ghb'}
 
 
 def get_filebox_cwd():
@@ -71,6 +71,31 @@ def generate_available_dates(year=2017, system=4, subsystem='sc', local=True):
     return dates_available
 
 
+def generate_filelist(start, end=None, system=2, subsystem='fg'):
+    """Search the local and remote datapaths for files in the given date range
+
+    Args:
+        start (datetime): First day of timespan
+        end (datetime, optional): last day of timespan. If None (default) then end = start
+        subsystem (str, optional): Instrument data to search for ('sc' or 'fg')
+
+    Returns:
+        filelist (list): List of string paths to files representing data for the given dates
+    """
+    end = start if end is None else end
+    if (type(start) is dt.datetime) and (type(end) is dt.datetime) and (start <= end):
+        searchlist = pd.date_range(start=start, end=end).to_pydatetime().tolist()
+        filelist = []
+        for date in searchlist:
+            year = date.year
+            datefolder = date.strftime('%Y_%m_%d')
+#             doy = '{:03}'.format(date.timetuple().tm_yday)
+            for root, dirs, files in os.walk('{0}/{1}/sys_{2}/{3}/{4}/'.format(datapath_local, year, system, subsystem, datefolder)):
+                filelist.extend([root+file for file in files])
+
+    return filelist
+
+
 def generate_yearly_masterlist(year=2017, system=3, subsystem='sc', local=True):
     """Generate a python list of available files in a year
 
@@ -118,7 +143,7 @@ def read_housekeeping_list(hskp_zip_list=''):
             date = df_in[df_in.columns[:6]]
             df_in.drop(['Month', 'Day', 'Hour', 'Minute',
                         'Second'], axis=1, inplace=True)
-            df_in.rename_axis({'Year': 'datetime'}, axis=1, inplace=True)
+            df_in.rename({'Year': 'datetime'}, axis=1, inplace=True)
             df_in['datetime'] = pd.to_datetime(date)
             df_hskp = df_hskp.append(df_in, ignore_index=True)
     return df_hskp
@@ -177,13 +202,9 @@ def read_searchcoil_list(sc_zip_list=''):
                         x for x in range(0, len(in_bits) // 3)]
             datetimes = datetimes + in_dates
     df_sc['datetime'] = datetimes
-    # merge all binary values into a single stream
-    # NOTE: This also fixes the stripped leading zeros from read
-    binstr = ''.join(['{:08b}'.format(x) for x in hexstr])
-    # separate the stream into 12bit ADC values
-    binstr = [binstr[i:i + 12] for i in range(0, len(binstr), 12)]
-    # convert the binary values to integers
-    intstr = [int(x, 2) for x in binstr]
+    # Convert the file long hex string into separate 12 bit samples,
+    # then convert them to integers
+    intstr = [int(hexstr[i:i+3], 16) for i in range(0, len(hexstr), 3)]
     intstr = [x - 4096 if x > 2047 else x for x in intstr]
     # group the X/Y by sample
     all_samples = [intstr[i:i + 2] for i in range(0, len(intstr), 2)]
@@ -194,7 +215,7 @@ def read_searchcoil_list(sc_zip_list=''):
     return df_sc.astype({'datetime': np.dtype('<M8[ns]'), 'dBx': np.float32, 'dBy': np.float32}, copy=True)
 
 
-def import_subsys(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
+def import_subsys_old(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
     """Reads a subset of the year's data and return a dataframe
 
     Args:
@@ -225,9 +246,36 @@ def import_subsys(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
         if start in x:
             start_ind = yearly_masterlist.index(x)
             break
+        start_ind = 0
     # Find the ending index in the master file list for the year
     for x in reversed(yearly_masterlist):
         if end in x:
             end_ind = yearly_masterlist.index(x) + 1
             break
+        end_ind = len(yearly_masterlist) - 1
     return subsfunc[subsys](yearly_masterlist[start_ind:end_ind])
+
+
+def import_subsys(start, end=None, system=4, subsys='sc'):
+    """Reads a subset of the year's data and return a dataframe
+
+    Args:
+        start (str, optional): First date of subset
+        end (str, optional): Last date of subset
+        system (int, optional): Which system to grab from
+        subsystem (str, optional): Which instrument subsystem
+
+    Returns:
+        DataFrame: A pandas dataframe with subsystem specific columns.
+    """
+    # subsystem function dictionary
+    subsfunc = {
+        'sc': read_searchcoil_list,
+        'fg': read_fluxgate_list,
+        'hskp': read_housekeeping_list
+    }
+
+    # generate a list of all files in a range
+    filelist = generate_filelist(start, end, system=system, subsystem=subsys)
+   
+    return subsfunc[subsys](filelist)
