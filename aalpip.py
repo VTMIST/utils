@@ -91,7 +91,7 @@ def generate_filelist(start, end=None, system=2, subsystem='fg'):
             datefolder = date.strftime('%Y_%m_%d')
 #             doy = '{:03}'.format(date.timetuple().tm_yday)
             for root, dirs, files in os.walk('{0}/{1}/sys_{2}/{3}/{4}/'.format(datapath_local, year, system, subsystem, datefolder)):
-                filelist.extend([root+file for file in files])
+                filelist.extend([root + file for file in files])
 
     return filelist
 
@@ -141,15 +141,14 @@ def read_housekeeping_list(hskp_zip_list=''):
         with gzip.open(zip_file) as file:
             df_in = pd.read_csv(file, sep=',', header=0)
             date = df_in[df_in.columns[:6]]
-            df_in.drop(['Month', 'Day', 'Hour', 'Minute',
-                        'Second'], axis=1, inplace=True)
+            df_in.drop(['Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
             df_in.rename({'Year': 'datetime'}, axis=1, inplace=True)
             df_in['datetime'] = pd.to_datetime(date)
             df_hskp = df_hskp.append(df_in, ignore_index=True)
     return df_hskp
 
 
-def read_fluxgate_list(fg_zip_list=''):
+def _read_fluxgate_list(fg_zip_list=''):
     """Read in a fluxgate filelist and return a dataframe
 
     Args:
@@ -171,11 +170,37 @@ def read_fluxgate_list(fg_zip_list=''):
             df_fg = df_fg.append(df_in, ignore_index=True)
             fg_in_dates = [fg_file_start + fg_sample_rate *
                            x for x in range(0, df_in.shape[0])]
-            fg_datetimes = fg_datetimes + fg_in_dates
+            # fg_datetimes = fg_datetimes + fg_in_dates
+            fg_datetimes.extend(fg_in_dates)
     df_fg['datetime'] = fg_datetimes
     df_fg = df_fg.reindex(
         columns=['datetime', 'Bx', 'By', 'Bz', 'Calibrating'])
     return df_fg[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32}, copy=True)
+
+
+def read_fluxgate_list(fg_zip_list=''):
+    """Read in a fluxgate filelist and return a dataframe
+
+    Args:
+        hskp_zip_list (str, optional): Python list of full file names to read
+
+    Returns:
+        DataFrame: A pandas dataframe with the following columns:
+
+        'datetime', 'Bx', 'By', 'Bz', 'Calibrating'
+    """
+    def df_fg_gen(fg_zip_list):
+        fg_sample_rate = dt.timedelta(seconds=1)
+        for zip_file in fg_zip_list:
+            fg_file_start = dt.datetime.strptime(zip_file[-30:-11], '%Y_%m_%d_%H_%M_%S')
+            with gzip.open(zip_file) as file:
+                df_in = pd.read_csv(file, sep=',', header=0)
+                fg_in_dates = pd.date_range(fg_file_start, periods=df_in.shape[0], freq=fg_sample_rate)
+                df_in['datetime'] = pd.Series(fg_in_dates)
+            df_in = df_in.reindex(columns=['datetime', 'Bx', 'By', 'Bz', 'Calibrating'])
+        yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float16, 'By': np.float16, 'Bz': np.float16})
+
+    return pd.concat(df_fg_gen(fg_zip_list), ignore_index=True)
 
 
 def read_searchcoil_list(sc_zip_list=''):
@@ -189,30 +214,23 @@ def read_searchcoil_list(sc_zip_list=''):
 
         'datetime', 'dBx', 'dBy'
     """
-    df_sc = pd.DataFrame()
-    datetimes = []
-    hexstr = b''
-    sample_rate = dt.timedelta(microseconds=100000)
-    for file in sc_zip_list:
-        file_start = dt.datetime.strptime(file[-26:-7], '%Y_%m_%d_%H_%M_%S')
-        with gzip.open(file, mode='rb') as bitstream:
-            in_bits = bitstream.read()
-            hexstr = hexstr + in_bits
-            in_dates = [file_start + sample_rate *
-                        x for x in range(0, len(in_bits) // 3)]
-            datetimes = datetimes + in_dates
-    df_sc['datetime'] = datetimes
-    # Convert the file long hex string into separate 12 bit samples,
-    # then convert them to integers
-    intstr = [int(hexstr[i:i+3], 16) for i in range(0, len(hexstr), 3)]
-    intstr = [x - 4096 if x > 2047 else x for x in intstr]
-    # group the X/Y by sample
-    all_samples = [intstr[i:i + 2] for i in range(0, len(intstr), 2)]
-    # Add the values to the dataframe in their respective columns,
-    # then scale them to our system (bit conversion / ADC Gain)
-    df_sc['dBx'] = [x[0] * (.0049 / 4.43) for x in all_samples]
-    df_sc['dBy'] = [x[1] * (.0049 / 4.43) for x in all_samples]
-    return df_sc.astype({'datetime': np.dtype('<M8[ns]'), 'dBx': np.float32, 'dBy': np.float32}, copy=True)
+    def df_sc_gen(sc_zip_list):
+        sample_rate = dt.timedelta(microseconds=100000)
+        for file in sc_zip_list:
+            file_start = dt.datetime.strptime(file[-26:-7], '%Y_%m_%d_%H_%M_%S')
+            df_in = pd.DataFrame(columns=['datetime', 'dBx', 'dBy'])
+            with gzip.open(file, mode='rb') as bitstream:
+                in_bits = bitstream.read().hex()
+                samples = [int(in_bits[i:i + 3], 16) for i in range(0, len(in_bits), 3)]
+                samples = [x - 4096 if x > 2047 else x for x in samples]
+                df_in['dBx'] = [samples[x] * (.0049 / 4.43) for x in range(0, len(samples), 2)]
+                df_in['dBy'] = [samples[x] * (.0049 / 4.43) for x in range(1, len(samples), 2)]
+
+                in_dates = pd.date_range(file_start, periods=len(in_bits) // 3, freq=sample_rate)
+                df_in['datetime'] = pd.Series(in_dates)
+            yield df_in.astype({'datetime': np.dtype('<M8[ns]'), 'dBx': np.float16, 'dBy': np.float16})
+
+    return pd.concat(df_sc_gen(sc_zip_list), ignore_index=True)
 
 
 def import_subsys_old(start='2017_01_01', end='2017_01_01', system=4, subsys='sc'):
@@ -256,7 +274,7 @@ def import_subsys_old(start='2017_01_01', end='2017_01_01', system=4, subsys='sc
     return subsfunc[subsys](yearly_masterlist[start_ind:end_ind])
 
 
-def import_subsys(start, end=None, system=4, subsys='sc'):
+def import_subsys(start: dt.datetime, end=None, system=4, subsys='sc'):
     """Reads a subset of the year's data and return a dataframe
 
     Args:
@@ -277,5 +295,5 @@ def import_subsys(start, end=None, system=4, subsys='sc'):
 
     # generate a list of all files in a range
     filelist = generate_filelist(start, end, system=system, subsystem=subsys)
-   
+
     return subsfunc[subsys](filelist)
