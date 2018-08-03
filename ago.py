@@ -1,13 +1,14 @@
 import os
+import zipfile
 import numpy as np
 import pandas as pd
-import datetime as dt
 
-datapath_local = 'S:/Space/Datasets/halley'
+datapath_local = 'S:/Space/Datasets/ago'
 # datapath_remote = '/home/aalpip/data/'
 
-conjugates = {'AGO4': 'KUV',
-              'AGO3': 'STF'}
+conjugates = {'AGO4': 'kuv',
+              'AGO3': 'stf'}
+
 
 def generate_yearly_masterlist(year=2017, subsystem='sc', local=True):
     """Generate a python list of available files in a year
@@ -52,7 +53,7 @@ def read_fluxgate_list(filelist=''):
     return df_fg
 
 
-def read_searchcoil_list(filelist=''):
+def read_searchcoil_list(filelist=['']):
     """Read in a fluxgate filelist and return a dataframe
 
     Args:
@@ -65,8 +66,9 @@ def read_searchcoil_list(filelist=''):
     """
     df_sc = pd.DataFrame()
     for zip_file in filelist:
-        with open(zip_file) as file:
-            df_in = pd.read_table(file, header=0, names=['datetime', 'dBx', 'dBy', 'dBz'], dtype={'datetime': np.str, 'dBx': np.float32, 'dBy': np.float32, 'dBz': np.float32})
-            df_sc = df_sc.append(df_in, ignore_index=True)
+        with zipfile.ZipFile(zip_file) as zippy:
+            with zippy.open('{}txt'.format(zip_file.split('/')[-1][:-3])) as file:
+                df_in = pd.read_table(file, header=0, names=['datetime', 'dBx', 'dBy', 'dBz'], dtype={'datetime': np.str, 'dBx': np.float32, 'dBy': np.float32, 'dBz': np.float32})
+                df_sc = df_sc.append(df_in, ignore_index=True)
     df_sc['datetime'] = pd.to_datetime(df_sc['datetime'])
-    return df_sc
+    return df_sc.astype({'datetime': np.dtype('<M8[ns]'), 'dBx': np.float32, 'dBy': np.float32, 'dBz': np.float32}, copy=True)

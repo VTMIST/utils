@@ -54,7 +54,7 @@ def generate_filelist(start, end=None, subsystem='sc'):
         filelist (list): List of string paths to files representing data for the given dates
     """
     end = start if end is None else end
-    if (type(start) is dt.datetime) and (type(end) is dt.datetime) and (start < end):
+    if (type(start) is dt.datetime) and (type(end) is dt.datetime) and (start <= end):
         searchlist = pd.date_range(start=start, end=end).to_pydatetime().tolist()
         remotelist = []
         locallist = []
@@ -76,6 +76,7 @@ def generate_filelist(start, end=None, subsystem='sc'):
             year = date.year
             doy = '{:03}'.format(date.timetuple().tm_yday)
             filelist.append('{0}/{3}/{1}/{2}{1}.txt'.format(datapath_local, year, doy, subsystem))
+
     return filelist
 
 

@@ -7,7 +7,7 @@ from astropy.time import Time
 from spacepy import pycdf
 
 
-datapath_local = '/data/dtu'
+datapath_local = '/data/dtu/'
 datapath_remote = 'S:/Space/Datasets/dtu'
 # Magnetic Conjugates Station ID
 conjugates = {'upn': 'PG0',
