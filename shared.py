@@ -90,7 +90,7 @@ def get_ccmc_tsyg_conj(datetime, lat, lon, SW_dyn_press=1, SW_vel=450, IMF_By=0,
         return conjugate_point
 
 
-def get_omni_sw_params(datetime):
+def get_omni_sw_params(datetime, offline=False):
     """Get OMNI merged solar wind parameters from CDAWEB. Accurate up to 1 minute.
 
     Args:
@@ -127,6 +127,14 @@ def get_omni_sw_params(datetime):
         'SW_dyn_press': MIN_data['FLOW_PRESSURE'][0],
         'SW_vel': MIN_data['FLOW_SPEED,_GSE'][0],
         'DST': DST_data['1-H_DST'][-1]}
+
+    if offline:
+        sw_params['bzimf'] = sw_params.pop('IMF_Bz')
+        sw_params['byimf'] = sw_params.pop('IMF_By')
+        sw_params['dst'] = sw_params.pop('DST')
+        sw_params['pdyn'] = sw_params.pop('SW_dyn_press')
+        sw_params['vswgse'] = [sw_params.pop('SW_vel'),0,0]
+
     return sw_params
 
 

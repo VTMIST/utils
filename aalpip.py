@@ -7,7 +7,8 @@ import zipfile as zf
 # import pysftp
 # import netrc
 
-datapath_local = '/data/aal-pip/data'
+# datapath_local = '/data/aal-pip/data'
+datapath_local = 'S:/Space/Datasets/aalpip_raw/'
 datapath_remote = '/home/aalpip/data'
 # Magnetic Conjugates Station ID
 conjugates = {'PG0': 'upn',
