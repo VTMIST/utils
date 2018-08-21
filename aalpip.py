@@ -4,8 +4,6 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 import zipfile as zf
-# import pysftp
-# import netrc
 
 # datapath_local = '/data/aal-pip/data'
 datapath_local = 'S:/Space/Datasets/aalpip_raw/'
@@ -18,20 +16,23 @@ conjugates = {'PG0': 'upn',
               'PG4': 'skt',
               'PG5': 'ghb'}
 
+lat_ranges = {'SPA': (-90, -89.9),
+              'BBG': (),
+              'PG0': (-83.68, -83.66),
+              'PG1': (-84.51, -84.49),
+              'PG2': (-84.42, -84.40),
+              'PG3': (-84.82, -84.80),
+              'PG4': (-83.33, -83.31),
+              'PG5': (-81.97, -81.95)}
 
-# def get_filebox_cwd():
-#     """Get the current working directory (root path) of a filebox FTP session
-
-#     Returns:
-#         string: Current working directory of filebox FTP session ('/home/aalpip/')
-#     """
-#     creds = netrc.netrc()
-#     un, _, pw = creds.authenticators('filebox.ece.vt.edu')
-#     cnopts = pysftp.CnOpts()
-#     cnopts.hostkeys = None
-
-#     with pysftp.Connection('filebox.ece.vt.edu', username=un, password=pw, cnopts=cnopts) as sftp:
-#         return sftp.pwd
+lon_ranges = {'SPA': (-180, 180),
+              'BBG': (),
+              'PG0': (88.66, 88.70),
+              'PG1': (77.18, 77.22),
+              'PG2': (57.93, 57.97),
+              'PG3': (37.60, 37.64),
+              'PG4': (12.23, 12.27),
+              'PG5': (5.68, 5.72)}
 
 
 def find_reboots(hskp_dataframe):
@@ -110,8 +111,8 @@ def generate_filelist(start, end=None, system=4, subsystem='fg'):
                 subsys_string = subsystem
             for root, dirs, files in os.walk(file_path_string):
                 filelist.extend([root + file for file in files if ((os.stat(root + file).st_size > 0) and
-                                                                   ('{}_{:02}_{:02}'.format(year,month,day) in file) and
-                                                                   ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and 
+                                                                   ('{}_{:02}_{:02}'.format(year, month, day) in file) and
+                                                                   ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and
                                                                    (subsys_string in file))])
 
     return filelist
@@ -143,14 +144,13 @@ def read_housekeeping_list(hskp_zip_list=''):
                 df_in['datetime'] = pd.to_datetime(date)
                 yield df_in
 
-
     def df_hskp_gen_sys1(hskp_zip_list):
         for zip_file in hskp_zip_list:
             try:
                 with zf.ZipFile(zip_file) as zipped:
                     with zipped.open(zipped.namelist()[0]) as csv:
                         df_in = pd.read_csv(csv)
-                        df_in.rename({'Min':'Minute', 'Sec':'Second'}, axis=1, inplace=True)
+                        df_in.rename({'Min': 'Minute', 'Sec': 'Second'}, axis=1, inplace=True)
                         date = df_in[df_in.columns[1:7]]
                         df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
                         df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
@@ -225,7 +225,6 @@ def read_fluxgate_list(fg_zip_list='', sys_1=False):
                 df_in = df_in.reindex(columns=['datetime', 'Bx', 'By', 'Bz', 'Calibrating'])
             yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32})
 
-
     def df_fg_gen_sys1(fg_zip_list):
         for zip_file in fg_zip_list:
             with zf.ZipFile(zip_file) as zipped:
@@ -235,7 +234,7 @@ def read_fluxgate_list(fg_zip_list='', sys_1=False):
                     df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second', 'X Null(V)', 'Z Null(V)'], axis=1, inplace=True)
                     df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
                     df_in['datetime'] = pd.to_datetime(date)
-                    df_in.rename(index=str, columns={'MagX(nT)':'Bx','MagY(nT)':'By','MagZ(nT)':'Bz'}, inplace=True)
+                    df_in.rename(index=str, columns={'MagX(nT)': 'Bx', 'MagY(nT)': 'By', 'MagZ(nT)': 'Bz'}, inplace=True)
                 yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32})
 
     try:
@@ -322,13 +321,13 @@ def _clean_df(df_in, subsystem='fg'):
     """
 
     # Remove error values
-    df_clean = df_in.where(df_in.Bx>-1e31)
+    df_clean = df_in.where(df_in.Bx > -1e31)
     # Remove values outside 3 stdev
     for column in df_clean.columns[1:]:
         std = df_clean[column].std()
         mean = df_clean[column].mean()
-        df_clean[column] = df_clean[column].where(df_clean[column]<(mean+(3*std)))
-        df_clean[column] = df_clean[column].where(df_clean[column]>(mean-(3*std)))
+        df_clean[column] = df_clean[column].where(df_clean[column] < (mean + (3 * std)))
+        df_clean[column] = df_clean[column].where(df_clean[column] > (mean - (3 * std)))
 
     # return cleaned, non-duplicated, and sorted dataframe
     return df_clean.dropna().sort_values(by=['datetime']).reset_index(drop=True)
