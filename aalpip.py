@@ -127,12 +127,19 @@ def read_housekeeping_list(hskp_zip_list=''):
     Returns:
         DataFrame: A pandas dataframe with the following columns:
 
+        SYS2+:
         'datetime', 'Modem_on', 'FG_on', 'SC_on', 'CASES_on', 'HF_On', 'Htr_On',
         'Garmin_GPS_on', 'Overcurrent_status_on', 'T_batt_1', 'T_batt_2',
         'T_batt_3', 'T_FG_electronics', 'T_FG_sensor', 'T_router', 'V_batt_1',
         'V_batt_2', 'V_batt_3', 'I_input', 'P_input', 'lat', 'long',
         'sys_time_error_secs', 'UTC_sync_age_secs', 'Uptime_secs',
         'CPU_load_1_min', 'CPU_load_5_min', 'CPU_load_15_min'
+
+        SYS1:
+        'datetime', 'UTC_sync_age_secs', 'sys_time_error_secs', 'GPS_sync',
+        'GPS_heat', 'int_modem_comm', 'int_modem_heat', 'int_modem_overtemp',
+        'ext_modem_comm', 'lat', 'long', 'V_batt_1', 'T_router', 'T_batt_1',
+        '3v3', 'int_modem_signal', ' Ext. Modem RF'
     """
     def df_hskp_gen(hskp_zip_list):
         for zip_file in hskp_zip_list:
@@ -153,7 +160,30 @@ def read_housekeeping_list(hskp_zip_list=''):
                         df_in.rename({'Min': 'Minute', 'Sec': 'Second'}, axis=1, inplace=True)
                         date = df_in[df_in.columns[1:7]]
                         df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
-                        df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
+                        # Dropping things we dont use..
+                        df_in.drop(['X Axis Null(V) Min', 'X Axis Null(V) Max', 'X Axis Null(V) Avg',
+                                    'Z Axis Null(V) Min', 'Z Axis Null(V) Max', 'Z Axis Null(V) Avg',
+                                    'Battery Temp(C) Min', 'Battery Temp(C) Max', 'CPU Board Temp(C) Min',
+                                    'CPU Board Temp(C) Max', 'Battery(V) Min', 'Battery(V) Max', '3.3 V Min',
+                                    '3.3 V Max', 'Spare 1(V) Min', 'Spare 1(V) Max', 'Spare 1(V) Avg',
+                                    '  Spare 2', ' Spare 3'], axis=1, inplace=True)
+                        df_in.rename({'Jul92 Date': 'datetime',
+                                      'Sync Age(sec)': 'UTC_sync_age_secs',
+                                      'Time Error(sec)':'sys_time_error_secs',
+                                      'GPS on for sync(%)':'GPS_sync',
+                                      'GPS on for heat(%)':'GPS_heat',
+                                      'Int modem on for comm(%)':'int_modem_comm',
+                                      'Int modem on for heat(%)':'int_modem_heat',
+                                      'Int modem is overtemp(%)':'int_modem_overtemp',
+                                      'Ext modem is on for comm(%)':'ext_modem_comm',
+                                      'Lat (deg)':'lat',
+                                      'Long (deg)':'long',
+                                      'Battery Temp(C) Avg':'T_batt_1',
+                                      'CPU Board Temp(C) Avg':'T_router',
+                                      'Battery(V) Avg':'V_batt_1',
+                                      '3.3 V Avg':'3v3',
+                                      'Int. Modem RF':'int_modem_signal',
+                                      'Ext. Modem RF':'ext_modem_signal'}, axis=1, inplace=True)
                         df_in['datetime'] = pd.to_datetime(date)
                     yield df_in
             except Exception as err:
