@@ -111,5 +111,5 @@ def tsyg_plot(sampledate):
 	plt.show()
 
 if __name__ == '__main__':
-	tsyg_plot(dt.datetime(2016,1,25,12))
+	tsyg_plot(datetime(2016,1,25,12))
 	exit()
