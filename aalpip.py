@@ -4,10 +4,15 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 import zipfile as zf
+# import pysftp
+# import netrc
 
-# datapath_local = '/data/aal-pip/data'
-datapath_local = 'S:/Space/Datasets/aalpip_raw/'
+datapath_local = '/data/aal-pip/data'
 datapath_remote = '/home/aalpip/data'
+
+# PG0_sys2 = pd.date_range()
+
+
 # Magnetic Conjugates Station ID
 conjugates = {'PG0': 'upn',
               'PG1': 'umq',
@@ -17,22 +22,47 @@ conjugates = {'PG0': 'upn',
               'PG5': 'ghb'}
 
 lat_ranges = {'SPA': (-90, -89.9),
-              'BBG': (),
+              'BBG': (37.21, 37.23),
               'PG0': (-83.68, -83.66),
               'PG1': (-84.51, -84.49),
               'PG2': (-84.42, -84.40),
               'PG3': (-84.82, -84.80),
-              'PG4': (-83.33, -83.31),
+              'PG4': (-83.34, -83.31),
               'PG5': (-81.97, -81.95)}
 
 lon_ranges = {'SPA': (-180, 180),
-              'BBG': (),
+              'BBG': (80.40, 80.42),
               'PG0': (88.66, 88.70),
               'PG1': (77.18, 77.22),
               'PG2': (57.93, 57.97),
               'PG3': (37.60, 37.64),
               'PG4': (12.23, 12.27),
               'PG5': (5.68, 5.72)}
+
+
+class housekeeping_df(pd.DataFrame):
+    def __init__(self,df,tail_season=None):
+        pd.DataFrame.__init__(self, data=df)
+        self._tail_season = 'end of season'
+        self.system = 0
+        self.PG = 'TST'
+        
+        self._locate_system()
+        
+    def tail_season(self):
+        # This is a placeholder for seasonal charging demarkation
+        return self._tail_season
+    
+    def _locate_system(self):
+        self.lat.replace(0.0, inplace=True, method='bfill')
+        self.lat.replace(0.0, inplace=True, method='ffill')
+        # LAT should be enough to locate a system
+        # self.long.replace(0.0, inplace=True, method='bfill')
+        # self.long.replace(0.0, inplace=True, method='ffill')
+        for coords in lat_ranges:
+            self.loc[self.lat.between(*lat_ranges[coords]),'site'] = coords
+        self.PG = self.site.iloc[-1] if self.site.iloc[-1] is not 'BBG' else 'TST'
+        return self.PG
 
 
 def find_reboots(hskp_dataframe):
@@ -46,8 +76,7 @@ def find_reboots(hskp_dataframe):
         datetime: A series of reboot datetimes based on the original dataframe
     """
     if 'Uptime_secs' in hskp_dataframe.columns:
-        reboots = hskp_dataframe.diff()['Uptime_secs'][hskp_dataframe.diff()[
-            'Uptime_secs'] < 0]
+        reboots = hskp_dataframe['Uptime_secs'].diff()[hskp_dataframe['Uptime_secs'].diff() < 0]
         reboots.where(reboots == 1, 1, inplace=True)
         datetime = hskp_dataframe['datetime'][reboots.index]
     else:
@@ -111,8 +140,8 @@ def generate_filelist(start, end=None, system=4, subsystem='fg'):
                 subsys_string = subsystem
             for root, dirs, files in os.walk(file_path_string):
                 filelist.extend([root + file for file in files if ((os.stat(root + file).st_size > 0) and
-                                                                   ('{}_{:02}_{:02}'.format(year, month, day) in file) and
-                                                                   ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and
+                                                                   ('{}_{:02}_{:02}'.format(year,month,day) in file) and
+                                                                   ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and 
                                                                    (subsys_string in file))])
 
     return filelist
@@ -127,19 +156,12 @@ def read_housekeeping_list(hskp_zip_list=''):
     Returns:
         DataFrame: A pandas dataframe with the following columns:
 
-        SYS2+:
         'datetime', 'Modem_on', 'FG_on', 'SC_on', 'CASES_on', 'HF_On', 'Htr_On',
         'Garmin_GPS_on', 'Overcurrent_status_on', 'T_batt_1', 'T_batt_2',
         'T_batt_3', 'T_FG_electronics', 'T_FG_sensor', 'T_router', 'V_batt_1',
         'V_batt_2', 'V_batt_3', 'I_input', 'P_input', 'lat', 'long',
         'sys_time_error_secs', 'UTC_sync_age_secs', 'Uptime_secs',
         'CPU_load_1_min', 'CPU_load_5_min', 'CPU_load_15_min'
-
-        SYS1:
-        'datetime', 'UTC_sync_age_secs', 'sys_time_error_secs', 'GPS_sync',
-        'GPS_heat', 'int_modem_comm', 'int_modem_heat', 'int_modem_overtemp',
-        'ext_modem_comm', 'lat', 'long', 'V_batt_1', 'T_router', 'T_batt_1',
-        '3v3', 'int_modem_signal', ' Ext. Modem RF'
     """
     def df_hskp_gen(hskp_zip_list):
         for zip_file in hskp_zip_list:
@@ -151,13 +173,14 @@ def read_housekeeping_list(hskp_zip_list=''):
                 df_in['datetime'] = pd.to_datetime(date)
                 yield df_in
 
+
     def df_hskp_gen_sys1(hskp_zip_list):
         for zip_file in hskp_zip_list:
             try:
                 with zf.ZipFile(zip_file) as zipped:
                     with zipped.open(zipped.namelist()[0]) as csv:
                         df_in = pd.read_csv(csv)
-                        df_in.rename({'Min': 'Minute', 'Sec': 'Second'}, axis=1, inplace=True)
+                        df_in.rename({'Min':'Minute', 'Sec':'Second'}, axis=1, inplace=True)
                         date = df_in[df_in.columns[1:7]]
                         df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
                         # Dropping things we dont use..
@@ -199,10 +222,13 @@ def read_housekeeping_list(hskp_zip_list=''):
     # except zf.BadZipFile as err:
         # print('Not .zip files (SYS1), trying gzip (SYS2+)')
         # df_out = pd.concat(df_hskp_gen(hskp_zip_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
+    except IndexError as err:
+        print('Empty List')
+        return pd.DataFrame({'datetime':[],'V_batt_1':[],'T_router':[]})
     except Exception as e:
         raise e
 
-    return df_out
+    return housekeeping_df(df_out)
 
 
 def _read_housekeeping_list(hskp_zip_list=''):
@@ -255,6 +281,7 @@ def read_fluxgate_list(fg_zip_list='', sys_1=False):
                 df_in = df_in.reindex(columns=['datetime', 'Bx', 'By', 'Bz', 'Calibrating'])
             yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32})
 
+
     def df_fg_gen_sys1(fg_zip_list):
         for zip_file in fg_zip_list:
             with zf.ZipFile(zip_file) as zipped:
@@ -264,7 +291,7 @@ def read_fluxgate_list(fg_zip_list='', sys_1=False):
                     df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second', 'X Null(V)', 'Z Null(V)'], axis=1, inplace=True)
                     df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
                     df_in['datetime'] = pd.to_datetime(date)
-                    df_in.rename(index=str, columns={'MagX(nT)': 'Bx', 'MagY(nT)': 'By', 'MagZ(nT)': 'Bz'}, inplace=True)
+                    df_in.rename(index=str, columns={'MagX(nT)':'Bx','MagY(nT)':'By','MagZ(nT)':'Bz'}, inplace=True)
                 yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32})
 
     try:
@@ -351,13 +378,13 @@ def _clean_df(df_in, subsystem='fg'):
     """
 
     # Remove error values
-    df_clean = df_in.where(df_in.Bx > -1e31)
+    df_clean = df_in.where(df_in.Bx>-1e31)
     # Remove values outside 3 stdev
     for column in df_clean.columns[1:]:
         std = df_clean[column].std()
         mean = df_clean[column].mean()
-        df_clean[column] = df_clean[column].where(df_clean[column] < (mean + (3 * std)))
-        df_clean[column] = df_clean[column].where(df_clean[column] > (mean - (3 * std)))
+        df_clean[column] = df_clean[column].where(df_clean[column]<(mean+(3*std)))
+        df_clean[column] = df_clean[column].where(df_clean[column]>(mean-(3*std)))
 
     # return cleaned, non-duplicated, and sorted dataframe
     return df_clean.dropna().sort_values(by=['datetime']).reset_index(drop=True)
