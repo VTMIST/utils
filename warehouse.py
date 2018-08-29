@@ -142,10 +142,12 @@ def _build_figure(count):
                 ax_hskp.annotate(str(count['hskp'][hour, PG]), (PG + xoffset, hour + yoffset))
 
     hskp = {i: aalpip.import_subsys(start=daycheck, system=i, subsys='hskp') for i in syslist}
+    sys_conv = {i: hskp[i].PG for i in hskp if not hskp[i].empty}
+    pglist = sorted([(value, key) for key, value in sys_conv.items()])
 
-    [ax_tmps.plot(hskp[system]['datetime'], hskp[system]['T_router'], 'C{}'.format(system-1), alpha=0.9) for system in syslist]
-    [ax_tmps.plot(count['reboots'][system][0], count['reboots'][system][1], 'xC{}'.format(system-1)) for system in syslist]
-    lgnd = ax_tmps.legend(['{}'.format(hskp[system].PG) for system in syslist], loc='upper left', bbox_to_anchor=(1, 1), fontsize=7)
+    [ax_tmps.plot(hskp[peng[1]]['datetime'], hskp[peng[1]]['T_router'], 'C{}'.format(peng[1] - 1), alpha=0.9) for peng in pglist]
+    [ax_tmps.plot(count['reboots'][peng[1]][0], count['reboots'][peng[1]][1], 'xC{}'.format(peng[1] - 1)) for peng in pglist]
+    lgnd = ax_tmps.legend([peng[0] for peng in pglist], loc='upper left', bbox_to_anchor=(1, 1), fontsize=7)
     for system in syslist:
         if len(count['reboots'][system][0]) > 0:
             for txt in lgnd.texts:
@@ -154,9 +156,10 @@ def _build_figure(count):
     ax_tmps.set_title('Red = Reboot', loc='right', color='r', x=1.1)
     ax_tmps.autoscale(axis='x', tight=True)
     ax_tmps.set_title('Electronics Box Temperature (deg C)')
+    ax_tmps.set_ylim(ax_tmps.get_ylim()[0], 40 if ax_tmps.get_ylim()[1] > 40 else ax_tmps.get_ylim()[1])
 
-    [ax_vlts.plot(hskp[system]['datetime'], hskp[system]['V_batt_1'], 'C{}'.format(system-1), alpha=0.9) for system in syslist]
-    lgnd = ax_vlts.legend(['{}'.format(hskp[system].PG) for system in syslist], loc='upper left', bbox_to_anchor=(1, 1), fontsize=7)
+    [ax_vlts.plot(hskp[peng[1]]['datetime'], hskp[peng[1]]['V_batt_1'], 'C{}'.format(peng[1] - 1), alpha=0.9) for peng in pglist]
+    lgnd = ax_vlts.legend([peng[0] for peng in pglist], loc='upper left', bbox_to_anchor=(1, 1), fontsize=7)
     for system in syslist:
         if len(count['reboots'][system][0]) > 0:
             for txt in lgnd.texts:
@@ -164,6 +167,7 @@ def _build_figure(count):
                     txt.set_color('r')
     ax_vlts.autoscale(axis='x', tight=True)
     ax_vlts.set_title('Battery Voltage (volts)')
+    ax_vlts.set_ylim(ax_vlts.get_ylim()[0], 15 if ax_vlts.get_ylim()[1] > 15 else ax_vlts.get_ylim()[1])
 
     ml = mdates.HourLocator()
     for ax in [ax_tmps, ax_vlts]:
@@ -176,6 +180,6 @@ def _build_figure(count):
 
 
 if __name__ == '__main__':
-    counter = _build_inventory(dt.datetime(2017, 2, 20))
+    counter = _build_inventory(dt.datetime(2018, 3, 29))
     _build_figure(counter)
     exit()
