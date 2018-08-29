@@ -54,14 +54,17 @@ class housekeeping_df(pd.DataFrame):
         return self._tail_season
     
     def _locate_system(self):
-        self.lat.replace(0.0, inplace=True, method='bfill')
-        self.lat.replace(0.0, inplace=True, method='ffill')
-        # LAT should be enough to locate a system
-        # self.long.replace(0.0, inplace=True, method='bfill')
-        # self.long.replace(0.0, inplace=True, method='ffill')
-        for coords in lat_ranges:
-            self.loc[self.lat.between(*lat_ranges[coords]),'site'] = coords
-        self.PG = self.site.iloc[-1] if self.site.iloc[-1] is not 'BBG' else 'TST'
+        try:
+            self.lat.replace(0.0, inplace=True, method='bfill')
+            self.lat.replace(0.0, inplace=True, method='ffill')
+            # LAT should be enough to locate a system
+            # self.long.replace(0.0, inplace=True, method='bfill')
+            # self.long.replace(0.0, inplace=True, method='ffill')
+            for coords in lat_ranges:
+                self.loc[self.lat.between(*lat_ranges[coords]),'site'] = coords
+            self.PG = self.site.iloc[-1] if self.site.iloc[-1] is not 'BBG' else 'TST'
+        except Exception as err:
+            pass
         return self.PG
 
 
@@ -223,8 +226,8 @@ def read_housekeeping_list(hskp_zip_list=''):
         # print('Not .zip files (SYS1), trying gzip (SYS2+)')
         # df_out = pd.concat(df_hskp_gen(hskp_zip_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
     except IndexError as err:
-        print('Empty List')
-        return pd.DataFrame({'datetime':[],'V_batt_1':[],'T_router':[]})
+        print('Empty File List (Data does not exist)')
+        return housekeeping_df(pd.DataFrame({'datetime':[],'V_batt_1':[],'T_router':[]}))
     except Exception as e:
         raise e
 
