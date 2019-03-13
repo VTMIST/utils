@@ -4,6 +4,8 @@ import ai.cdas as cdas
 import numpy as np
 
 proton_mass = 1.6726219e-27
+cdas_cache = '/data/cdas/'
+cdas.set_cache(True, directory=cdas_cache)
 
 
 def get_ccmc_tsyg_conj(datetime, lat, lon, SW_dyn_press=1, SW_vel=450, IMF_By=0, IMF_Bz=0, DST=1, direction='North-South'):
@@ -97,26 +99,29 @@ def get_wind_sw_params(datetime, offline=False):
     sw_date = dt.datetime.strptime(
         datetime.strftime('%Y%m%d%H%M'), '%Y%m%d%H%M')
     # Get data from WIND for the minute period of interest
-    WIND_MFI = cdas.get_datasets('istp_public', idPattern='WI_H0_MFI.*')
-    datasetID = WIND_MFI['DatasetDescription'][0]['Id']
-    MFI_data = cdas.get_data('sp_phys', datasetID, sw_date, sw_date + dt.timedelta(minutes=2), ['BGSM'])
-    WIND_3DP = cdas.get_datasets('istp_public', idPattern='WI_PM_3DP.*')
-    datasetID = WIND_3DP['DatasetDescription'][0]['Id']
-    PLM_data = cdas.get_data('sp_phys', datasetID, sw_date, sw_date + dt.timedelta(minutes=1), ['P_DENS', 'P_VELS'])
+    # WIND_MFI = cdas.get_datasets('istp_public', idPattern='WI_H0_MFI.*')
+    # datasetID = WIND_MFI['DatasetDescription'][0]['Id']
+    MFI_data = cdas.get_data('sp_phys', 'WI_H0_MFI', sw_date, sw_date + dt.timedelta(minutes=2), ['BGSM'], progress=False)
+    # WIND_3DP = cdas.get_datasets('istp_public', idPattern='WI_PM_3DP.*')
+    # datasetID = WIND_3DP['DatasetDescription'][0]['Id']
+    PLM_data = cdas.get_data('sp_phys', 'WI_PM_3DP', sw_date, sw_date + dt.timedelta(minutes=1), ['P_DENS', 'P_VELS'], progress=False)
     # Get DST from OMNI (hourly)
-    datasets = cdas.get_datasets(
-        'istp_public', idPattern='.*MRG1HR', labelPattern='.*OMNI.*')
-    datasetID = datasets['DatasetDescription'][0]['Id']
-    variables = cdas.get_variables('istp_public', datasetID)
+    # datasets = cdas.get_datasets(
+    # 'istp_public', idPattern='.*MRG1HR', labelPattern='.*OMNI.*')
+    # datasetID = datasets['DatasetDescription'][0]['Id']
+    # variables = cdas.get_variables('istp_public', 'OMNI_COHO1HR_MERGED_MAG_PLASMA')
     DST_data = cdas.get_data(
-        'sp_phys', datasetID, sw_date - dt.timedelta(hours=2), sw_date, ['DST1800'])
+        'sp_phys', 'OMNI2_H0_MRG1HR', sw_date - dt.timedelta(hours=2), sw_date + dt.timedelta(hours=2), ['DST1800'], progress=False)
+
+    # find the nearest date value in the search time span
+    date_tuple = min([(abs(date - sw_date), date) for date in DST_data['TIME_AT_CENTER_OF_HOUR']])
 
     sw_params = {
         'IMF_By': MFI_data['BY_(GSM)'][0],
         'IMF_Bz': MFI_data['BZ_(GSM)'][0],
-        'SW_vel': PLM_data['VXGSE_PROTN_S/C'][PLM_data['VXGSE_PROTN_S/C'] < -50].mean(),
+        'SW_vel': np.nanmedian(PLM_data['VXGSE_PROTN_S/C'][np.nan_to_num(PLM_data['VXGSE_PROTN_S/C'])<50]),
         'SW_dyn_press': proton_mass * 1e3 * PLM_data['DENS_PROTN_S/C'][PLM_data['DENS_PROTN_S/C'] < 300].mean() * 1e3 * ((PLM_data['VXGSE_PROTN_S/C'][PLM_data['VXGSE_PROTN_S/C'] < -50].mean() * 1e3) ** 2) * 1e9,
-        'DST': DST_data['1-H_DST'][-1]
+        'DST': DST_data['1-H_DST'][DST_data['TIME_AT_CENTER_OF_HOUR'].index(date_tuple[1])]
     }
 
     if offline:
@@ -124,7 +129,7 @@ def get_wind_sw_params(datetime, offline=False):
         sw_params['byimf'] = sw_params.pop('IMF_By')
         sw_params['dst'] = sw_params.pop('DST')
         sw_params['pdyn'] = sw_params.pop('SW_dyn_press')
-        sw_params['vswgse'] = [sw_params.pop('SW_vel'),PLM_data['VYGSE_PROTN_S/C'].mean(),PLM_data['VZGSE_PROTN_S/C'].mean()]
+        sw_params['vswgse'] = [sw_params.pop('SW_vel'), np.nanmedian(PLM_data['VYGSE_PROTN_S/C']), np.nanmedian(PLM_data['VZGSE_PROTN_S/C'])]
 
     return sw_params
 
@@ -144,36 +149,46 @@ def get_omni_sw_params(datetime, offline=False):
     sw_date = dt.datetime.strptime(
         datetime.strftime('%Y%m%d%H%M'), '%Y%m%d%H%M')
     # Get data from OMNI for the minute period of interest
-    minutelies = ['BZ_GSM', 'BY_GSM', 'flow_speed', 'Pressure']
-    datasets = cdas.get_datasets(
-        'istp_public', idPattern='.*1MIN', labelPattern='.*OMNI.*')
-    datasetID = datasets['DatasetDescription'][0]['Id']
-    variables = cdas.get_variables('istp_public', datasetID)
+    minutelies = ['BZ_GSM', 'BY_GSM', 'flow_speed', 'Pressure', 'Vx', 'Vy', 'Vz']
+    # datasets = cdas.get_datasets(
+    # 'istp_public', idPattern='.*1MIN', labelPattern='.*OMNI.*')
+    # datasetID = datasets['DatasetDescription'][0]['Id']
+    datasetID = 'OMNI_HRO_1MIN'
+    # variables = cdas.get_variables('istp_public', datasetID)
     MIN_data = cdas.get_data(
-        'sp_phys', datasetID, sw_date, sw_date + dt.timedelta(minutes=1), minutelies)
+        'sp_phys', datasetID, sw_date - dt.timedelta(hours=0.5), sw_date + dt.timedelta(hours=0.5), minutelies, progress=False)
+
+    MIN_dt = min([(abs(date - sw_date), date) for date in MIN_data['EPOCH_TIME']])
     # Get DST from OMNI (hourly)
-    datasets = cdas.get_datasets(
-        'istp_public', idPattern='.*MRG1HR', labelPattern='.*OMNI.*')
-    datasetID = datasets['DatasetDescription'][0]['Id']
-    variables = cdas.get_variables('istp_public', datasetID)
+    # datasets = cdas.get_datasets(
+    # 'istp_public', idPattern='.*MRG1HR', labelPattern='.*OMNI.*')
+    # datasetID = datasets['DatasetDescription'][0]['Id']
+    datasetID = 'OMNI2_H0_MRG1HR'
+    # variables = cdas.get_variables('istp_public', datasetID)
     DST_data = cdas.get_data(
-        'sp_phys', datasetID, sw_date - dt.timedelta(hours=2), sw_date, ['DST1800'])
+        'sp_phys', datasetID, sw_date - dt.timedelta(hours=2), sw_date + dt.timedelta(hours=2), ['DST1800'], progress=False)
+
+    # find the nearest date value in the search time span
+    date_tuple = min([(abs(date - sw_date), date) for date in DST_data['TIME_AT_CENTER_OF_HOUR']])
 
     # Build parameter dictionary
     sw_params = {
-        'IMF_By': MIN_data['BY,_GSM'][0],
-        'IMF_Bz': MIN_data['BZ,_GSM'][0],
-        'SW_dyn_press': MIN_data['FLOW_PRESSURE'][0],
+        'IMF_By': np.nanmedian(MIN_data['BY,_GSM'][MIN_data['BY,_GSM']<90]),
+        'IMF_Bz': np.nanmedian(MIN_data['BZ,_GSM'][MIN_data['BZ,_GSM']<90]),
+        'SW_dyn_press': np.nanmedian(MIN_data['FLOW_PRESSURE'][MIN_data['FLOW_PRESSURE']<90]),
         'SW_vel': MIN_data['FLOW_SPEED,_GSE'][0],
-        'DST': DST_data['1-H_DST'][-1]
+        'DST': DST_data['1-H_DST'][DST_data['TIME_AT_CENTER_OF_HOUR'].index(date_tuple[1])]
     }
 
     if offline:
+        sw_params.pop('SW_vel')
         sw_params['bzimf'] = sw_params.pop('IMF_Bz')
         sw_params['byimf'] = sw_params.pop('IMF_By')
         sw_params['dst'] = sw_params.pop('DST')
         sw_params['pdyn'] = sw_params.pop('SW_dyn_press')
-        sw_params['vswgse'] = [sw_params.pop('SW_vel'),0,0]
+        sw_params['vswgse'] = [np.nanmedian(MIN_data['VX_VELOCITY,_GSE'][MIN_data['VX_VELOCITY,_GSE']<2e3]),
+                               np.nanmedian(MIN_data['VY_VELOCITY,_GSE'][MIN_data['VY_VELOCITY,_GSE']<2e3]),
+                               np.nanmedian(MIN_data['VZ_VELOCITY,_GSE'][MIN_data['VZ_VELOCITY,_GSE']<2e3])]
 
     return sw_params
 

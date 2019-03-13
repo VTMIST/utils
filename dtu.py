@@ -17,6 +17,8 @@ conjugates = {'upn': 'PG0',
               'skt': 'PG4',
               'ghb': 'PG5'}
 
+# TODO: Fix empty filelist concatenation (EX: UPN-2017/3/22)
+
 
 def generate_yearly_masterlist(year=2017, station='ghb', local=True):
     """Generate a python list of available files in a year

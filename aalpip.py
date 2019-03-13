@@ -22,7 +22,8 @@ conjugates = {'PG0': 'upn',
               'PG5': 'ghb'}
 
 lat_ranges = {'SPA': (-90, -89.9),
-              'BBG': (37.21, 37.23),
+              'BBG': (37.19, 37.23),
+              'MCH': (42.28, 42.3),
               'PG0': (-83.68, -83.66),
               'PG1': (-84.51, -84.49),
               'PG2': (-84.42, -84.40),
@@ -32,6 +33,7 @@ lat_ranges = {'SPA': (-90, -89.9),
 
 lon_ranges = {'SPA': (-180, 180),
               'BBG': (80.40, 80.42),
+              'MCH': (-83.69, -83.73),
               'PG0': (88.66, 88.70),
               'PG1': (77.18, 77.22),
               'PG2': (57.93, 57.97),
@@ -53,6 +55,7 @@ class housekeeping_df(pd.DataFrame):
         # This is a placeholder for seasonal charging demarkation
         return self._tail_season
     
+    # this is bad and should be catergorical based on each datetime
     def _locate_system(self):
         try:
             self.lat.replace(0.0, inplace=True, method='bfill')
@@ -124,28 +127,30 @@ def generate_filelist(start, end=None, system=4, subsystem='fg'):
         filelist (list): List of string paths to files representing data for the given dates
     """
     end = start if end is None else end
-    if (type(start) is dt.datetime) and (type(end) is dt.datetime) and (start <= end):
-        searchlist = pd.date_range(start=start, end=end).to_pydatetime().tolist()
-        filelist = []
-        for date in searchlist:
-            year = date.year
-            month = date.month
-            day = date.day
-            if system == 1:
-                file_path_string = '{0}/{1}/sys_{2}/'.format(datapath_local, year, system)
-                subsys_string = 'HSKP' if subsystem == 'hskp' else 'MAG'
-                if subsystem != 'hskp' and subsystem != 'fg':
-                    return filelist
-            else:
-                file_path_string = '{0}/{1}/sys_{2}/{3}/{4}_{5:02}_{6:02}/'.format(datapath_local, year, system, subsystem, year, month, day)
-                if subsystem == 'hf':
-                    file_path_string = '{0}/{1}/sys_{2}/{3}/'.format(datapath_local, year, system, subsystem)
-                subsys_string = subsystem
-            for root, dirs, files in os.walk(file_path_string):
-                filelist.extend([root + file for file in files if ((os.stat(root + file).st_size > 0) and
-                                                                   ('{}_{:02}_{:02}'.format(year,month,day) in file) and
-                                                                   ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and 
-                                                                   (subsys_string in file))])
+    # assert (type(start) is dt.datetime) or (type(start) is pd.Timestamp)
+    # assert (type(end) is dt.datetime) or (type(end) is pd.Timestamp)
+    assert (start <= end)
+    searchlist = pd.date_range(start=start, end=end).to_pydatetime().tolist()
+    filelist = []
+    for date in searchlist:
+        year = date.year
+        month = date.month
+        day = date.day
+        if (system == 1) or ((system == 2) and date < dt.datetime(2012,1,1)):
+            file_path_string = '{0}/{1}/sys_{2}/'.format(datapath_local, year, system)
+            subsys_string = 'HSKP' if subsystem == 'hskp' else 'MAG'
+            if subsystem != 'hskp' and subsystem != 'fg':
+                return filelist
+        else:
+            file_path_string = '{0}/{1}/sys_{2}/{3}/{4}_{5:02}_{6:02}/'.format(datapath_local, year, system, subsystem, year, month, day)
+            if subsystem == 'hf':
+                file_path_string = '{0}/{1}/sys_{2}/{3}/'.format(datapath_local, year, system, subsystem)
+            subsys_string = subsystem
+        for root, dirs, files in os.walk(file_path_string):
+            filelist.extend([root + file for file in files if ((os.stat(root + file).st_size > 0) and
+                                                               ('{}_{:02}_{:02}'.format(year,month,day) in file) and
+                                                               ('.csv' in file[-8:] or '.dat' in file[-8:] or '.txt' in file[-8:]) and 
+                                                               (subsys_string in file))])
 
     return filelist
 
@@ -168,13 +173,17 @@ def read_housekeeping_list(hskp_zip_list=''):
     """
     def df_hskp_gen(hskp_zip_list):
         for zip_file in hskp_zip_list:
-            with gzip.open(zip_file) as file:
-                df_in = pd.read_csv(file, sep=',', header=0)
-                date = df_in[df_in.columns[:6]]
-                df_in.drop(['Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
-                df_in.rename({'Year': 'datetime'}, axis=1, inplace=True)
-                df_in['datetime'] = pd.to_datetime(date)
-                yield df_in
+            try:
+                with gzip.open(zip_file) as file:
+                    df_in = pd.read_csv(file, sep=',', header=0)
+                    date = df_in[df_in.columns[:6]]
+                    df_in.drop(['Month', 'Day', 'Hour', 'Minute', 'Second'], axis=1, inplace=True)
+                    df_in.rename({'Year': 'datetime'}, axis=1, inplace=True)
+                    df_in['datetime'] = pd.to_datetime(date)
+                    yield df_in
+            except Exception as err:
+                print(zip_file, ' caused an error, ignoring: ', err)
+                pass
 
 
     def df_hskp_gen_sys1(hskp_zip_list):
@@ -209,16 +218,26 @@ def read_housekeeping_list(hskp_zip_list=''):
                                       'Battery(V) Avg':'V_batt_1',
                                       '3.3 V Avg':'3v3',
                                       'Int. Modem RF':'int_modem_signal',
-                                      'Ext. Modem RF':'ext_modem_signal'}, axis=1, inplace=True)
+                                      ' Ext. Modem RF':'ext_modem_signal'}, axis=1, inplace=True)
                         df_in['datetime'] = pd.to_datetime(date)
                     yield df_in
+            except pd.errors.EmptyDataError as err:
+                print(zip_file, ' is EMPTY')
+                pass
             except Exception as err:
                 print(zip_file, ' caused an error: ', err)
                 raise err
 
     try:
-        if 'sys_1' in hskp_zip_list[0]:
-            df_out = pd.concat(df_hskp_gen_sys1(hskp_zip_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
+        if 'PEN' in hskp_zip_list[0]:
+            old_list = [file for file in hskp_zip_list if 'hskp' not in file]
+            new_list = [file for file in hskp_zip_list if 'hskp' in file]
+            df_out_old = pd.concat(df_hskp_gen_sys1(old_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
+            if (len(new_list) > 0):
+                df_out_new = pd.concat(df_hskp_gen(new_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
+            else:
+                df_out_new = pd.DataFrame()
+            df_out = pd.concat([df_out_old, df_out_new], ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
         else:
             df_out = pd.concat(df_hskp_gen(hskp_zip_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
         # df_out = pd.concat(df_hskp_gen_sys1(hskp_zip_list), ignore_index=True).sort_values(by=['datetime']).reset_index(drop=True)
@@ -289,12 +308,18 @@ def read_fluxgate_list(fg_zip_list='', sys_1=False):
         for zip_file in fg_zip_list:
             with zf.ZipFile(zip_file) as zipped:
                 with zipped.open(zipped.namelist()[0]) as csv:
-                    df_in = pd.read_csv(csv)
-                    date = df_in[df_in.columns[1:7]]
-                    df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second', 'X Null(V)', 'Z Null(V)'], axis=1, inplace=True)
-                    df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
-                    df_in['datetime'] = pd.to_datetime(date)
-                    df_in.rename(index=str, columns={'MagX(nT)':'Bx','MagY(nT)':'By','MagZ(nT)':'Bz'}, inplace=True)
+                    try:
+                        df_in = pd.read_csv(csv, error_bad_lines=False, warn_bad_lines=False)
+                        date = df_in[df_in.columns[1:7]]
+                        df_in.drop(['Year', 'Month', 'Day', 'Hour', 'Minute', 'Second', 'X Null(V)', 'Z Null(V)'], axis=1, inplace=True)
+                        df_in.rename({'Jul92 Date': 'datetime'}, axis=1, inplace=True)
+                        df_in['datetime'] = pd.to_datetime(date)
+                        df_in.rename(index=str, columns={'MagX(nT)':'Bx','MagY(nT)':'By','MagZ(nT)':'Bz'}, inplace=True)
+                    except EmptyDataError as e:
+                        pass
+                    except Exception as e:
+                        print('{} Caused an error'.format(zip_file))
+                        raise e
                 yield df_in[['datetime', 'Bx', 'By', 'Bz']].astype({'datetime': np.dtype('<M8[ns]'), 'Bx': np.float32, 'By': np.float32, 'Bz': np.float32})
 
     try:
@@ -393,17 +418,52 @@ def _clean_df(df_in, subsystem='fg'):
     return df_clean.dropna().sort_values(by=['datetime']).reset_index(drop=True)
 
 
-def import_subsys(start: dt.datetime, end=None, system=4, subsys='sc', clean=False):
+def _trim_df(df_in, subsystem='hskp'):
+    
+    if subsystem == 'hskp':
+        # drop unused columns
+        df_skinny = df_in.drop(columns=['T_batt_2', 'T_batt_3', 'V_batt_2', 'V_batt_3', 'CPU_load_5_min', 'CPU_load_15_min', '3v3'], errors='ignore')
+        # downcast site as a category
+        # df_skinny.site = df_skinny.site.astype('category')
+        # downcast boolean types
+        bin_cols = ['CASES_on', 'FG_on', 'Garmin_GPS_on', 'HF_On', 'Htr_On', 'SC_on', 'Modem_on', 'Overcurrent_status_on']
+        for column in bin_cols:
+            if column in df_skinny.columns:
+                df_skinny[column] = df_skinny[column].fillna(0).astype('bool')
+        # recast ints as int32
+        int_cols = ['UTC_sync_age_secs', 'Uptime_secs', 'sys_time_error_secs']
+        for column in int_cols:
+            if column in df_skinny.columns:
+                df_skinny[column] = df_skinny[column].fillna(0).astype('int32')
+        # signal ranges from 0-5
+        if 'int_modem_signal' in df_skinny.columns:
+            df_skinny.int_modem_signal = df_skinny.int_modem_signal.fillna(0).astype('int8')
+        # recast floats as float32
+        for column in list(df_skinny.select_dtypes('float64').columns):
+            if column in df_skinny.columns:
+                df_skinny[column] = df_skinny[column].fillna(0).astype('float32')
+        # df_skinny = housekeeping_df(df_skinny)
+    else:
+        df_skinny = df_in
+    return df_skinny
+
+
+def import_subsys(start: dt.datetime, end=None, system=4, subsys='sc', clean=False, skinny=True):
     """Reads a subset of the year's data and return a dataframe
-
+    
     Args:
-        start (str, optional): First date of subset
-        end (str, optional): Last date of subset
+        start (dt.datetime): First date of subset
+        end (dt.datetime, optional): Last date of subset
         system (int, optional): Which system to grab from
-        subsystem (str, optional): Which instrument subsystem
-
+        subsys (str, optional): the subsystem to import
+        clean (bool, optional): False by default, clean the data by various methods (see _clean_df doc)
+        skinny (bool, optional): True by default, minimize the resultant data frame size in memory
+    
     Returns:
         DataFrame: A pandas dataframe with subsystem specific columns.
+    
+    Deleted Parameters:
+        subsystem (str, optional): Which instrument subsystem
     """
     # subsystem function dictionary
     subsfunc = {
@@ -414,9 +474,12 @@ def import_subsys(start: dt.datetime, end=None, system=4, subsys='sc', clean=Fal
 
     # generate a list of all files in a range
     filelist = generate_filelist(start, end, system=system, subsystem=subsys)
-
+    # call the appropriate function
     df_out = subsfunc[subsys](filelist)
     if clean:
-        _clean_df(df_out, subsystem=subsys)
+        df_out = _clean_df(df_out, subsystem=subsys)
+    # this is the lazy way to do things. we should trim the DF on construction, not after it's been built
+    if skinny:
+        df_out = _trim_df(df_out, subsystem=subsys)
 
     return df_out

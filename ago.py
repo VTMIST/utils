@@ -3,7 +3,7 @@ import zipfile
 import numpy as np
 import pandas as pd
 
-datapath_local = 'S:/Space/Datasets/ago'
+datapath_local = '/data/ago'
 # datapath_remote = '/home/aalpip/data/'
 
 conjugates = {'AGO4': 'kuv',

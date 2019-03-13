@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import datetime as dt
 
-datapath_local = 'S:/Space/Datasets/halley'
+datapath_local = '/data/halley'
 datapath_remote = 'http://psddb.nerc-bas.ac.uk/data/psddata/atmos/space/'
 
 
@@ -13,7 +13,7 @@ def fetch_remote(datetime, subsystem='sc'):
 
     Args:
         datetime (datetime): python datetime object
-        subsystem (str, optional): Instrument string ('scm' or 'fgm')
+        subsystem (str, optional): Instrument string ('sc' or 'fg')
 
     Returns:
         available (bool): True if file is downloaded from remote server
@@ -62,7 +62,7 @@ def generate_filelist(start, end=None, subsystem='sc'):
             year = date.year
             doy = '{:03}'.format(date.timetuple().tm_yday)
             try:
-                with open('{0}/{3}/{1}/{2}{1}.txt'.format(datapath_local, year, doy, subsystem), 'x'):
+                with open('{0}/{3}/{1}/{2}{1}.TXT'.format(datapath_local, year, doy, subsystem), 'x'):
                     pass
                 remotelist.append(date)
             except FileExistsError:
@@ -75,7 +75,7 @@ def generate_filelist(start, end=None, subsystem='sc'):
         for date in locallist:
             year = date.year
             doy = '{:03}'.format(date.timetuple().tm_yday)
-            filelist.append('{0}/{3}/{1}/{2}{1}.txt'.format(datapath_local, year, doy, subsystem))
+            filelist.append('{0}/{3}/{1}/{2}{1}.TXT'.format(datapath_local, year, doy, subsystem))
 
     return filelist
 

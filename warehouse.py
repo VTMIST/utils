@@ -1,7 +1,10 @@
+#/usr/bin/python3.5
 # import os
 import sys
 import numpy as np
 import datetime as dt
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolor
 import matplotlib.dates as mdates
@@ -149,7 +152,7 @@ def _build_figure(count):
 
     # HSKP plots
     # First, import the data
-    hskp = {i: aalpip.import_subsys(start=daycheck, system=i, subsys='hskp') for i in syslist}
+    hskp = {i: aalpip.housekeeping_df(aalpip.import_subsys(start=daycheck, system=i, subsys='hskp')) for i in syslist}
     # list tuples of PG an sys for populated hskp dataframes
     sys_conv = {i: hskp[i].PG for i in hskp if not hskp[i].empty}
     # create a sorted list (pglist) of PG stations and their corresponding system
@@ -195,12 +198,12 @@ def _build_figure(count):
         ax.xaxis.set_minor_locator(ml)
         ax.grid(which='both')
 
-    plt.savefig('/home/shanec1/Downloads/inventory.png')
+    plt.savefig('/home/aal-pip/Public/inventory.png')
     # plt.show()
     pass
 
 
 if __name__ == '__main__':
-    counter = _build_inventory(dt.datetime(2018, 2, 28))
+    counter = _build_inventory(dt.datetime.now()-dt.timedelta(days=1))
     _build_figure(counter)
     exit()

@@ -1,9 +1,13 @@
 import sys
-sys.path.append('/usr/local/lib/python3.5/dist-packages/')
 sys.path.append('/usr/local/lib/python3.5/dist-packages/tsyganenko/')
 # sys.path.append('/home/shanec1/.local/lib/python3.5/site-packages/')
 sys.path.append('/code/utils/')
-import tsyganenko
+try:
+	import tsyganenko
+except ImportError as err:
+	sys.path.remove('/usr/local/lib/python3.5/dist-packages/tsyganenko/')
+	sys.path.append('/usr/local/lib/python3.7/site-packages/tsyganenko/')
+	import tsyganenko
 import shared
 import numpy as np
 import pandas as pd
