@@ -8,7 +8,7 @@ from spacepy import pycdf
 
 
 datapath_local = '/data/dtu/'
-datapath_remote = 'S:/Space/Datasets/dtu'
+# datapath_remote = 'S:/Space/Datasets/dtu'
 # Magnetic Conjugates Station ID
 conjugates = {'upn': 'PG0',
               'umq': 'PG1',
